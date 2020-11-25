@@ -1,0 +1,193 @@
+---
+title: 'Intro pt(2) - Spring 2020'
+author: 
+- name: Sathwik Kesappragada
+  email: 
+output:
+  html_document:
+    toc: yes
+---
+
+
+
+***
+
+**Load necessary packages**
+
+```{r, collapse=T}
+#install the tidyverse package first if you have not done it yet.
+#install.packages("tidyverse") # you can comment out this line after you have installed `tidyverse`
+
+library(tidyverse) # for the `ggplot2` package
+```
+
+***
+
+
+This data set contains fuel economy data 1999 - 2008 for 38 popular car models (source: EPA [http://fueleconomy.gov](http://fueleconomy.gov)).
+
+```{r, collapse=T}
+?mpg
+dim(mpg)  # dimension of the table
+names(mpg)  # list the variables in mpg
+str(mpg)  # list the structures in mpg
+glimpse(mpg) # get a glimpse of the mpg data
+```
+
+
+```{r, collapse=T}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy, colour = "blue"))
+```
+
+**The expression colour = "blue" is in the mapping argument and gets considered as a categorical value.** 
+
+Modify the code to plot blue points.
+
+
+
+```{r, collapse=T}
+# Enter your code here
+ggplot(data = mpg) +
+  geom_point(mapping = aes(x = displ, y = hwy), colour = "blue") #expression was stated out of aes()
+```
+
+**As a result, the expression (displ < 5) becomes a boolean and the ggplot() acts as if a temprorary varaible was added to the data with the values satifying the condition.**   
+
+```{r, collapse=T}
+# Enter your code here
+ggplot(mpg, aes(x = displ, y = hwy, color = displ < 5))+  # the color variable acts like a piecewise function; organizes the data into different colors
+  geom_point()
+```
+
+
+![](http://r4ds.had.co.nz/visualize_files/figure-html/unnamed-chunk-29-2.png)
+
+```{r, collapse = T}
+ggplot(mpg, aes(x = displ, y = hwy)) +  #scatterplot
+  geom_smooth(mapping = aes(group = drv), se = FALSE) +  # helps plot the curves/lines
+  geom_point()
+```
+
+![](http://r4ds.had.co.nz/visualize_files/figure-html/unnamed-chunk-29-3.png)
+
+```{r, collapse = T}
+ggplot(mpg, aes(x=displ, y= hwy, colour = drv)) +  #color is respective to drivetrain 
+  geom_point()+
+  geom_smooth(se = FALSE)  # the curves 
+```
+
+![](http://r4ds.had.co.nz/visualize_files/figure-html/unnamed-chunk-29-4.png)
+
+```{r, collapse = T}
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(aes(colour = drv)) +
+  geom_smooth(se = FALSE)
+
+```
+
+![](http://r4ds.had.co.nz/visualize_files/figure-html/unnamed-chunk-29-5.png)
+
+```{r, collapse = T}
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(aes(colour = drv)) +
+  geom_smooth(aes(linetype = drv), se = FALSE) #curves/lines are respective to the drv
+```
+
+
+```{r, collapse = T}
+ggplot(mpg, aes(x = displ, y = hwy, colour = drv)) + 
+         geom_point()
+```
+
+
+```{r, collapse = T}
+ggplot(data = mpg) + 
+  geom_point(mapping = aes(x = displ, y = hwy)) +
+  facet_wrap(~class, nrow = 3) # hint
+```
+
+
+Most `geom` functions and `stat` functions come in pairs that are almost always used in concert. 
+
+- every `geom` has a default `stat`
+- every `stat` has a default `geom` 
+
+
+| `geom` function  | default `stat` function  | variables computed by the default `stat` function  |
+|-----------------|------------|----------------|
+| `geom_bar()`        |  'stat_count()'  |  'count, prop'  |
+| `geom_histogram()`  |  'stat_bin()'  |  'count, density, ncount, ndensity'  |
+| `geom_density()`    |  'stat_density()' | 'density, count, scaled, ndensity'    |
+| `geom_point()`      |  'stat_identity()' |    |
+| `geom_smooth()`     |  'stat_smooth()   | 'y, ymin, ymax, se'    |
+
+Some `geom` function has stat = "identity" as the default. What does that mean?
+
+**When defining stat = "identity" it means to leave the data as is (don't aggregate the data) because it expects the user to have calculated what's needed (y values).**
+
+```{r, collapse=T, fig.height=5}
+#install.packages("gridExtra") # you only need to install it once
+library(gridExtra)
+gg <- ggplot(data = mpg,
+             mapping = aes(x = drv, fill = class)) #following lab3 sample, data needs to be changed
+plot1 <- gg + geom_bar(position="stack")
+plot2 <- gg + geom_bar(position="identity")
+plot3 <- gg + geom_bar(position="fill")
+plot4 <- gg + geom_bar(position="dodge")
+grid.arrange(plot1, plot2, plot3, plot4, ncol=2)  ## must use categorical values
+```
+
+
+```{r}
+library(datasets)
+?quakes 
+```
+
+```{r, collapse=T}
+class(quakes)
+head(quakes, n=5) # print first 5 rows of quakes
+dim(quakes)  # dimension of the table
+names(quakes)  # list the variables in quakes
+str(quakes)  # list the structures in quakes
+glimpse(quakes) # get a glimpse of the quakes data
+```
+
+
+
+```{r, collapse=T}
+p1 <- ggplot(data = quakes, aes(x=quakes$mag)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   binwidth=0.2,
+                   colour="black", fill="white") +
+    geom_density(color = "red") +  # Overlay with transparent density plot 
+    ggtitle("Histogram") # ggtitle function will label the graphs
+p2 <- ggplot(data = quakes) + geom_boxplot(aes(x = " ", y = mag), color = "blue", fill = "red") + coord_flip() + ggtitle("boxplot")
+
+p3 <- ggplot(quakes, aes(quakes$mag)) + stat_ecdf(geom = "step", pad = FALSE) + ggtitle("Empirical CDF")
+
+p4 <- ggplot(quakes, aes(sample = quakes$mag)) +
+  stat_qq() +
+  stat_qq_line(colour="#000099", lwd = 2) +
+  ggtitle("Q-Q Plot") #blue thick line 
+
+grid.arrange(p1,p2,p3,p4, ncol = 2)
+```
+
+
+```{r, collapse = T}
+z <- quakes$mag
+q1 <- summary(z)[2] #get the second element of the summary list
+q3 <- summary(z)[5]
+iqr <- q3-q1
+lwr <- q1 - 1.5*iqr #lowerbound
+upr <- q3 + 1.5*iqr #upperbound
+outlierI <- which(z > upr) # Check outlier index
+## [1]   15   17  152  558  753  870 1000
+ggplot(quakes, aes(x = quakes$long, y = quakes$lat)) +
+          geom_point(mapping = aes(size = quakes$mag, colour = quakes$depth)) +
+plot(quakes$long[outlierI],quakes$lat[outlierI], pch=15, col="red") #the outlier that we identified in part b
+
+
+```
+

@@ -1,0 +1,134 @@
+---
+title: 'Automobile ggplot - Spring 2020'
+author: 
+- name: Sathwik Kesappragada
+  email:
+output:
+  html_document:
+    toc: yes
+---
+
+
+***
+
+**Load necessary packages**
+
+```{r, collapse=T}
+# install the tidyverse package first if you have not done it yet.
+#install.packages("tidyverse") # you can comment out this line after you have installed `tidyverse`
+
+library(tidyverse) # for the `ggplot2` package
+```
+
+
+***
+
+This data set contains fuel economy data 1999 - 2008 for 38 popular car models (source: EPA [http://fueleconomy.gov](http://fueleconomy.gov)).
+
+```{r, collapse=T}
+?mpg
+dim(mpg)  # dimension of the table
+names(mpg)  # list the variables in mpg
+str(mpg)  # list the structures in mpg
+glimpse(mpg) # get a glimpse of the mpg data
+```
+
+
+```{r, collapse=T}
+# Enter your code here
+count(x = mpg, drv)
+ggplot(data = mpg, mapping = aes(x = drv, fill = drv)) +
+  geom_bar() +
+  geom_text(stat = 'count', 
+            mapping = aes(label = ..count..),
+            vjust = 0)
+```
+
+
+```{r, collapse=T}
+# Enter your code here
+library(gridExtra)
+bar <- ggplot(data = mpg) +
+  geom_bar(mapping = aes(x = drv, fill = drv), show.legend = F, width = 1) +
+  theme(aspect.ratio = 1) 
+#plot1 <- bar + coord_flip() 
+plot2 <- bar + coord_polar()
+grid.arrange(plot2, ncol = 2)
+
+
+```
+
+***
+
+
+```{r, collapse=T}
+# Enter your code here
+ggplot(data = mpg) +
+  geom_boxplot(mapping = aes(x = reorder(drv, hwy, FUN = median), y = hwy)) +
+  coord_flip()
+```
+
+
+***
+
+
+```{r, collapse=T}
+?diamonds
+dim(diamonds)  # dimension of the table
+diamonds # print/view diamonds
+str(diamonds)  # list the structures in diamonds
+glimpse(diamonds) # get a glimpse of the data
+```
+
+
+```{r, collapse=T}
+# Enter your code here
+ggplot(data = count(x = diamonds, cut, clarity)) +
+  geom_tile(mapping = aes(x = cut, y = clarity, fill = n))
+
+```
+
+
+
+```{r, collapse=T}
+# Enter your code here
+ggplot(data = count(x = diamonds, cut, clarity)) +
+  geom_tile(mapping = aes(x = cut, y = clarity, fill = n)) +
+  scale_fill_distiller(palette = "RdPu")
+```
+
+***
+
+
+```{r, collapse=T}
+# Enter your code here
+ggplot(data = diamonds, mapping = aes(x = price, y = ..density..)) + 
+  geom_histogram(mapping = aes(fill = cut), binwidth = 1000, position = "dodge")
+
+```
+
+
+```{r, collapse=T}
+# Enter your code here
+ggplot(data = diamonds, mapping = aes(x = price, y = ..density..)) + 
+  geom_freqpoly(mapping = aes(color = cut), binwidth = 500)
+```
+
+```{r, collapse=T}
+# Enter your code here
+ggplot(diamonds, aes(x = cut, y = price, color = cut)) +
+  geom_boxplot() + 
+  coord_flip()
+ 
+```
+
+
+```{r, collapse=T}
+# Enter your code here
+ggplot(data = diamonds, mapping = aes(x = cut, y = price)) +
+  geom_violin() +
+  coord_flip()
+```
+
+
+**Each plot serves its own purpose. Boxplot helps see the precise estimate of quantiles and outliers. Geom_freqpoly displays which cut has the highest density when given the price. Geom_violin is similar to a boxplot however, it points out noticeable differences in the overall shape of the distributions (skewness, centrality). The histogram showed the distribution of cuts when given price. When comparing two categorical variables such as cut and clarity, the heat map helps  present the intersection of the categories is strongest and weakest. I love all the visualization types and each one would be needed at certain time. My favorite plot is the geom_freqpoly because I like when its used and how it does a good job showing the distinct categories.**

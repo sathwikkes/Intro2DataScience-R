@@ -1,0 +1,388 @@
+---
+title: 'Arrests, Diamonds, Flights - KMeanslustering - Spring 2020'
+author: 
+- name: Sathwik Kesappragada
+  email: 
+output:
+  html_document:
+    toc: yes
+    toc_depth: 4
+---
+
+
+
+**Acknowledgments**
+
+Some of the example code were adopted from:
+
+- Class material from Cosma Shalizi @ CMU, and David Dalpiaz @ UIUC
+- Colored dendrogram example @ [stackoverflow](https://stackoverflow.com/questions/8045538/labelling-ggdendro-leaves-in-multiple-colors)
+***
+
+**Install necessary packages**
+
+Note that you only need to install each package once. Then you can comment out the following installation lines.
+
+``````{r, collapse=T}
+# install.packages("Lahman")
+# install.packages("ggdendro")
+```
+
+***
+
+**Load necessary packages**
+
+```{r, collapse=T}
+library(tidyverse) # for `ggplot2`, `dplyr`, `tidyr` and more
+library(Lahman) # for the Lahman data set
+library(nycflights13) # for NYC flights data set
+library(ggdendro) # for plotting dendrogram
+```
+
+***
+
+**Set the random seed**
+```{r}
+# set the random seed so that your analysis is reproducible
+set.seed(167) # do NOT change this number
+```
+
+***
+
+
+```{r, collapse=T}
+glimpse(airlines)
+
+airlines %>% count(carrier) %>% filter (n>1)
+```
+
+
+```{r, collapse=T}
+glimpse(flights)
+
+anti_join(flights, airlines, by="carrier") 
+```
+
+
+```{r, collapse = T}
+Lahman::Batting %>%
+  count(playerID, yearID, stint) %>%
+  filter(n >1) %>%
+  nrow()
+#for batting table the primary keys are playerID, yearID, stint
+```
+
+***
+
+```{r, collapse = T}
+nrow(anti_join(Lahman::Pitching, Lahman::Batting, by = c("playerID", "yearID", "stint")))
+```
+
+***
+
+
+**There is no primary key for ggplot2::diamonds, since there exists no group of variables that uniquely identify each record.**
+```{r, collapse = T}
+ggplot2::diamonds %>%
+  count() %>%
+  filter(n >1) 
+#there are some duplicate rows
+ggplot2::diamonds %>%
+  distinct() %>%
+  nrow()
+```
+
+***
+
+In the `nycflights13` diagram, the authors forgot to draw the relationship between `weather` and `airports`. 
+![](http://r4ds.had.co.nz/diagrams/relational-nycflights.png) 
+
+
+**The column airpots$faa is a foreign key of weather$origin.**
+```{r, collapse = T}
+anti_join(weather, airports, by = c("origin" = "faa"))
+```
+
+
+***
+
+```{r, collapse = T}
+#first, find all distinct airline + plane combinations
+not_canceled <- filter(flights, !is.na(dep_delay), !is.na(arr_delay))
+planes_carriers <- not_canceled %>% 
+  filter(!is.na(tailnum)) %>%
+  distinct(tailnum, carrier)
+
+planes_carriers %>%
+  count(tailnum) %>%
+  filter(n >1) %>%
+  nrow()
+```
+
+***
+
+**N0EGMQ flew the most. Envoy Air**
+```{r, collapse = T}
+flights2 <- left_join(flights, airlines, by ="carrier")
+#flights2
+planes_gte100 <- flights2 %>%
+  filter(!is.na(tailnum)) %>%
+  group_by(tailnum, name) %>%
+  count(sort = TRUE) %>%
+  filter(n >= 100)
+planes_gte100
+
+
+
+```
+
+***
+
+**AirTran Airways, JetBlue Airways, Endeavor Air Inc. are some of the few airlines that did not have frequently flown planes (>100).**
+```{r, collapse = T}
+# 16 rows : letter abbreviation, airline name, number of flown planes
+flights2_tbl <- as_tibble(flights2)
+frequently_flown <- flights2_tbl %>%
+  count(tailnum, name, carrier) %>%
+  count(carrier, name) %>%
+  filter(nn > 100) %>%
+  arrange(nn)
+frequently_flown
+#not all 16 rows print because when I filter (n > 100 ) the document doesn't knit. 
+#the other 6 are below 100
+
+### this is scratch work, ignore
+# flights2 %>%
+#   semi_join(planes_gte100, by= "tailnum") %>%
+#   distinct(name, carrier) %>%
+#   group_by(name, carrier) %>%
+#   filter(n >= 100)
+# freq <- group_by(planes_gte100, carrier)
+# freq <- summarize(freq, count = sum(n, na.rm = TRUE))
+# freq
+# left_join(airlines, freq, by = "carrier")
+
+```
+
+***
+
+
+```{r, collapse=T}
+?USArrests # `USArrests` helper page
+dim(USArrests)
+head(USArrests)
+```
+
+***
+
+
+**Yes all of the averages of the variables vary a lot.**
+```{r, collapse = T}
+USArrests %>%
+  summarize_all(list(mean = mean, variance = var))
+```
+
+***
+
+
+```{r, collapse=T}
+USArrests.scaled <- scale(USArrests)
+head(USArrests.scaled)
+```
+
+
+**The means vary but are all very small values. The variances amongst all of the variables were 1. **
+```{r, collapse = T}
+#is.atomic(USArrests.scaled) to prove that it is an atomic vector
+Arrests_tbl <- as_tibble(USArrests.scaled)
+summarize_all(Arrests_tbl, list(mean = mean, variance = var))
+# mean(USArrests.scaled[, "Murder"])
+# mean(USArrests.scaled[, "Assault"])
+# mean(USArrests.scaled[, "UrbanPop"])
+# mean(USArrests.scaled[, "Rape"])
+# var(USArrests.scaled[, "Murder"])
+# var(USArrests.scaled[, "Assault"])
+# var(USArrests.scaled[, "UrbanPop"])
+# var(USArrests.scaled[, "Rape"])
+
+```
+***
+
+
+```{r, collapse=T}
+library(ggdendro)
+
+hc.single <- hclust(d = dist(USArrests), method = "single")
+
+ggdendrogram(data = hc.single) +
+  ggtitle("Single Linkage, Unscaled Data")
+```
+
+
+```{r, collapse=T}
+# cut the dendrogram to get 4 clusters
+hc.cl <- cutree(tree = hc.single, k = 4) 
+# hc.cl
+
+hc.cl.tb <- tibble(label = names(hc.cl), cl = as.factor(hc.cl))
+# hc.cl.tb
+
+# get dendrogram
+hc.single.dd <- as.dendrogram(hc.single)
+# hc.single.dd
+
+# rectangular lines of the dendrogram
+hc.single.dd.data <- dendro_data(hc.single.dd, type = "rectangle")
+# hc.single.dd.data
+
+# join dendrogram labels with clustering results
+labels <- label(hc.single.dd.data) %>% left_join(hc.cl.tb)
+# labels
+
+# plot dendrogram with colored leaf labels 
+ggplot(data = segment(hc.single.dd.data)) + 
+  geom_segment(mapping = aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_text(data = labels, 
+            mapping = aes(label = label, x = x, y = -1, color = cl), 
+            size = 3, hjust = 1, angle = 90) +
+  ylim(low = -10, high = NA)
+```
+
+
+```{r, collapse=T}
+US_arrests <- hclust(d = dist(USArrests.scaled), method = "single")
+
+# cut the dendrogram to get 4 clusters
+arrest_dendo <- cutree(tree = US_arrests, k = 4) 
+
+arrest_dendo_tb <- tibble(label = names(arrest_dendo), cl1 = as.factor(arrest_dendo))
+
+
+# get dendrogram
+USArrests.dd <- as.dendrogram(US_arrests)
+
+
+# rectangular lines of the dendrogram
+arrest.single.dd.data <- dendro_data(USArrests.dd, type = "rectangle")
+
+
+# join dendrogram labels with clustering results
+labels2 <- label(arrest.single.dd.data) %>% left_join(arrest_dendo_tb)
+# labels
+
+# plot dendrogram with colored leaf labels 
+ggplot(data = segment(arrest.single.dd.data)) + 
+  geom_segment(mapping = aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_text(data = labels2, 
+            mapping = aes(label = label, x = x, y = 0, color = cl1), 
+            size = 3, hjust = 1, angle = 90) +
+  ylim(low = -1, high = NA) +
+  ggtitle("Single Linkage, scaled Data")
+```
+
+***
+
+
+```{r, collapse = T}
+US_arrests_comp <- hclust(d = dist(USArrests.scaled), method = "complete")
+
+# cut the dendrogram to get 4 clusters
+arrest_dendo2 <- cutree(tree = US_arrests_comp, k = 4) 
+
+arrest_dendo_tb2 <- tibble(label = names(arrest_dendo2), cl2 = as.factor(arrest_dendo))
+
+
+# get dendrogram
+USArrests.dd <- as.dendrogram(US_arrests_comp)
+
+
+# rectangular lines of the dendrogram
+arrest.complete.dd.data <- dendro_data(USArrests.dd, type = "rectangle")
+
+
+# join dendrogram labels with clustering results
+labels3 <- label(arrest.complete.dd.data) %>% left_join(arrest_dendo_tb2)
+# labels
+
+# plot dendrogram with colored leaf labels 
+ggplot(data = segment(arrest.complete.dd.data)) + 
+  geom_segment(mapping = aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_text(data = labels3, 
+            mapping = aes(label = label, x = x, y = 0, color = cl2), 
+            size = 3, hjust = 1, angle = 90) +
+  ylim(low = -1, high = NA) +
+  ggtitle("Complete Linkage, scaled Data")
+```
+
+***
+
+**Complete Linkage is favorable because the dendogram is much more organized and easier to read. Additionally, it seems more reasonable since the results do a better job in dislaying the disimilarities between the observations in clusters. Easier to spot the clusters.**
+
+***
+
+
+```{r, collapse = T}
+hclust_canberra <- dist(USArrests.scaled, method = "canberra")
+plot(hclust_canberra, main = "Canberra Linkage", xlab = "", sub = "")
+
+```
+
+***
+
+
+$$\sum_{k=1}^{K} WCV(C_k)$$
+
+Typically, we use the sum of all the
+pair-wise squared **Euclidean distances** between the 
+observations in each cluster to quantify the **within-cluster
+variation**:
+
+$$
+WCV(C_k) = \frac{1}{|C_k|} \sum_{i,i' \in C_k} \lVert \boldsymbol{x_{i}} - \boldsymbol{x_{i'}} \rVert ^2_2
+= 2 \sum_{i \in C_k} \lVert \boldsymbol{x_{i}} - \boldsymbol{\bar{x}_{k}} \rVert ^2_2
+$$
+
+
+```{r, collapse = T}
+clust <- kmeans(USArrests.scaled, centers = 15, nstart = 20)
+#attributes(clust)
+WSS <- numeric(15)
+
+for(i in 1:15)
+{
+  #Extract total WSS for i-cluster solution
+  WSS[i] <- kmeans(USArrests.scaled, centers = i)$tot.withinss  
+}
+  
+cbind(No.of.Cluters=1:15, WSS)
+```
+***
+
+
+```{r, collapse = T}
+plot(1:15, WSS, type="l", xlab = "No. of clusters", ylab = "Total WSS", main = "Within-Cluster Plot")
+```
+
+
+**Between clusters 2 and 4 there exists a sudden drop. Based on this plot, 10 clusters (4-14) are reasonable. **
+
+***
+
+
+**5 observations fall in each cluster. Total WSS = 374.6184.**
+```{r, collapse = T}
+WSS. <- sapply(4:14, function(i){return(kmeans(USArrests.scaled, centers = i)$tot.withinss)})
+cbind(No.of.Cluters=4:14, WSS.)
+sum(WSS.)
+plot(4:14, WSS., type="l", xlab = "No. of clusters", ylab = "Total WSS", main = "Within-Cluster Plot ~ Chosen Centers")
+```
+
+***
+
+**Yes because there is no elbow and we have linear relationship.**
+```{r, collapse =T}
+v2 <- kmeans(USArrests.scaled, centers = 2, nstart = 20)
+plot(USArrests.scaled, col = v2$cluster, pch = 8)
+```
+
+***

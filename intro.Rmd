@@ -1,0 +1,191 @@
+---
+title: 'Intro - Spring 2020'
+author: 
+- name: Sathwik Kesappragada
+  email: 
+output:
+  html_document:
+    toc: yes
+---
+
+***
+
+**Load necessary packages**
+
+```{r, collapse=T}
+library(datasets) # for the `quakes` data set
+
+## You need to install the maps package first, then you can comment out the following line.
+# install.packages("maps")
+
+library(maps) # for map visualization
+```
+
+
+***
+
+The `quakes` data set give the locations of 1000 seismic events of MB > 4.0. The events occurred in a cube near Fiji since 1964.
+
+\footnotesize
+```{r}
+library(datasets) # we have already loaded the package but we can do it again
+?quakes 
+```
+
+```{r, collapse=T}
+class(quakes)
+head(quakes, n=5) # print first 5 rows of quakes
+dim(quakes)  # dimension of the table
+names(quakes)  # list the variables in quakes
+str(quakes)  # list the structures in quakes
+```
+
+
+
+```{r, collapse = T}
+par(mfrow=c(2,2))# keeps the subfigures in a 2 by 2 layout
+hist(quakes$mag, freq=F, xlab="Earthquake Magnitude") # histogram - subfigure 1
+boxplot(quakes$mag, add=F, horizontal=T, xlab="Magnitude",  at=10, width=5, col=2, border="blue") #subfigure 2
+lines(density(quakes$mag), col="red", lwd=3) # empirical density curve - subfigure 1
+plot.ecdf(quakes$mag, verticals=T, pch="",
+          xlab="Earthquake Magnitude", 
+          main="ECDF of Earthquake Magnitudes") # empirical CDF plot - subfigure 3
+qqnorm(quakes$mag)
+qqline(quakes$mag,lwd=4, lty=4, col="blue") #subfigure 4 normal qq plot
+
+```
+
+
+There are several outliers labeled by open circles in the boxplot. Write a simple code to print out the indexes of the outliers and then print out the outlier observations.  
+
+
+```{r, collapse=T}
+x <-quakes$mag #store all values of magnitude vector 
+summary(x)
+q1 <- summary(x)[2] #get the second element of the summary list
+q3 <- summary(x)[5]
+iqr <- q3-q1
+lwr <- q1 - 1.5*iqr #lowerbound
+lwr
+upr <- q3 + 1.5*iqr #upperbound
+upr
+which(x < lwr) # spits out the index if there exists outliers below the lowerbound
+which(x > upr) #upperbound outlier indexes
+c(x[x < lwr], x[x > upr]) #prints the values of the outlier 
+```
+How many outliers have you found?
+**7**
+
+
+That is, $X_i \sim N(\mu, \sigma^2)$, where $X_i$ is the magnitude of the $i$-th earthquake observation and $i=1,2,\cdots,1000$.  
+
+The **minimum variance unbiased estimators (MVUE)** for $\mu$ and $\sigma^2$ are:
+$$
+\widehat{\mu}=\overline{X}=\frac{1}{n}\sum_{i=1}^n X_i \\
+\widehat{\sigma^2}=S^2=\frac{1}{n-1}\sum_{i=1}^n (X_i - \overline{X})^2
+$$
+
+Use existing R functions to calculate the estimates of $\widehat{\mu}$ and $\widehat{\sigma^2}$.
+
+```{r, collapse=T}
+n <- length(x) #1000 
+mu_hat <- sum(x) / n   #calculates mu_hat after taking the summation
+mu_hat
+
+sig <- (sum((x - mu_hat)^2))/(n-1) #calculates the summation of the differences first and then divides by length-1
+sig
+```
+
+Do NOT use any existing R functions, write your own R code to calculate the estimates of $\widehat{\mu}$ and $\widehat{\sigma^2}$.
+
+```{r, collapse=T}
+sum <- 0
+for(i in 1:length(x)){  #for loop to calculate the sum
+sum <- sum + x[i]
+}
+mu_hat1 <- sum / length(x) #length(x) can be 1000 since its known
+mu_hat1
+
+sig1 <- 0
+for(i in 1:length(x)){ 
+sig1 <- sig1 + (x[i] - mu_hat1)^2    #summation of the differences 
+}
+sig1 <- sig1/ (length(x)-1)
+sig1
+```
+
+
+
+```{r, collapse = T}
+#par(mfrow=c(2,2))
+z <- seq(0,8,length = 1000) #scale 
+hist(quakes$mag, freq=F, xlab="Earthquake Magnitude", xlim = c(0,8)) # histogram - subfigure 1
+lines(density(quakes$mag), col="red", lwd=3) # empirical density curve - subfigure 1
+#prob.x <- dnorm(x, mu_hat, sig)
+prob.z <- dnorm(z, mean = mu_hat, sd = sqrt(sig)) #normal distribution
+lines(z, prob.z, lwd = 3, lty = 2, col = 'blue') # Plot the blue dashed line for normal distriubtion curve
+```
+
+
+**The Estimated normal curve is nearly similar to the empirical density curve. The magnitude obsverations follow a normal distribution and as you take a look at the Q-Q plot, one can conclude the same.** 
+
+
+
+```{r}
+# require(graphics) # load the graphics library
+
+pairs(quakes, main = "Fiji Earthquakes, N = 1000", cex.main=1.2, pch=".")
+```
+
+Describe the output figure. 
+
+**The figure for magnitude seems to form a series of vertical lines in the first image which contains a horizontal spacing in the second image, that spacing continues to widen into a fan-shaped pattern by the third image, and shows a roughly linear positive relationship by last image.** 
+
+
+Do you think the `mag` variable and `stations` variables are positively correlated? Explain your answer.
+
+**'Mag' and 'stations' are positively correlated because they both show similar pattern when they shift and change.** 
+
+
+
+```{r, collapse = T}
+cor_x <- cor(quakes$mag, quakes$stations) #correlation coefficient 
+cor_x
+cov_x <- cov(quakes$mag, quakes$stations) #covariance 
+cov_x
+plot(quakes$mag, quakes$stations, xlab= "Earthquake Magnitude", ylab = "Stations", pch = 16)
+points(c(x[x < lwr], x[x > upr]), col=2, pch=23, lwd=5)
+legend("topright",legend = c("Covariance: 0.85", "Correlation: 7.51", "x < lwr: 3.4 &  x > upr:5.8"), col=2, pch=23)
+
+```
+
+
+
+**FIJI is close by (east of) New Zealand and the Phillipines**  
+
+```{r, collapse=T}
+library(maps)
+map()
+points(quakes$long, quakes$lat, pch=".", col="red")
+```
+
+
+```{r, collapse=T}
+long.mean <- mean(quakes$long)
+lat.mean <- mean(quakes$lat)
+#orient <- c(lat.mean, long.mean, 0)
+xlim <- c(min(quakes$long)/2, max(quakes$long)*1.5)
+ylim <- c(min(quakes$lat)-10, max(quakes$lat)+10)
+map(database="world", xlim=xlim, ylim=ylim, col="grey80", fill=T)
+```
+
+
+```{r, collapse=T}
+plot(quakes$long, quakes$lat, pch=".", col="red") # Plot the earthquake locations into the map 
+outlierI <- which(x > upr) # Check outlier index
+## [1]   15   17  152  558  753  870 1000
+points(quakes$long[outlierI],quakes$lat[outlierI], pch=15, col="blue") #the outlier that we identified in part b
+```
+
+
+  

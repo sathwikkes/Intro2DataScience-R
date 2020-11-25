@@ -1,0 +1,447 @@
+---
+title: 'Boston Housing CV - Spring 2020'
+author: 
+- name: Sathwik Kesappragada
+  email:
+output:
+  html_document:
+    toc: yes
+    toc_depth: 4
+---
+
+
+***
+
+**Install necessary packages**
+
+Note that you only need to install each package once. Then you can comment out the following installation lines.
+
+``````{r}
+#install.packages("MASS")
+```
+
+**Load necessary packages**
+
+```{r, collapse=T}
+library(tidyverse) # for `ggplot2`, `dplyr`, and more
+
+library(MASS) # for `Boston` data set
+
+library(boot) # for `cv.glm` function
+```
+
+**Set the random seed**
+```{r}
+# set the random seed so the analysis is reproducible
+set.seed(167) # do NOT change this number
+```
+
+***
+
+
+Recall the `Boston` data set contains housing values in suburbs of Boston.
+
+```{r, collapse=T}
+?Boston # full documentation
+dim(Boston)
+glimpse(Boston)
+```
+
+
+```{r, collapse=T}
+lm.full <- lm(medv ~ . , Boston)
+summary(lm.full)
+```
+
+***
+
+```{r, collapse = T}
+#top 3 variables, forward selection strategy 
+#try not to inspect regression results
+#lm.summary.full <- summary(lm.full)
+#just selected the top 3 manually based of rss
+lm.fwd3 <- lm(medv ~ rm + lstat + ptratio, data = Boston) 
+summary(lm.fwd3)
+
+##try using for loop to compare rss of each predictor to medv and then push everything into a list, find min of list
+#for(i in 1:13)
+# tried leaps, but avoided because question says no other packages or step()
+# library(leaps)
+# lm.full.fwd <- regsubsets(medv ~. , data = Boston, method = "forward")
+# lm.summary.fwd <- summary(lm.full.fwd)
+# coef(lm.full.fwd, which.max(lm.summary.fwd$adjr2))
+```
+
+***
+
+
+$$
+\begin{aligned}
+\text{MSE} &= E \left[ \left(y- \hat{f}(x) \right)^2 \right] \\
+& =  \frac{1}{n} \sum_{i=1}^n \left(y_i- \hat{f}(x_i) \right)^2
+\end{aligned}
+$$
+
+**Inputs**:
+
+| Argument | Description                                                   | 
+|----------|---------------------------------------------------------------|
+|  `y`     | a vector giving the values of the response variable           |
+| `yhat`   | a vector giving the predicted values of the response variable |
+
+
+
+```{r}
+calculateMSE <- function(y, yhat) {
+  # Your code here
+  n <- length(y)
+  rss <- sum((y-yhat)^2)
+  mse = (1/n) * rss
+  return(mse)
+}
+```
+
+After you complete the function, run the following code. You should expect a return value of 21.89483.
+
+```{r, collapse=T}
+lm.full <- lm(medv ~ . , Boston)
+lm.full.pred <- predict(lm.full)
+calculateMSE(Boston$medv, lm.full.pred)
+```
+
+***
+
+$$
+\begin{aligned}
+\text{TSS} & = \sum_{i=1}^{n} (y_i - \bar{y})^2 \\
+\text{RSS} & = \sum_{i=1}^{n} \left(y_i - \hat{f}(x_i) \right)^2 \\
+R^2 & = \frac{\text{TSS}-\text{RSS}}{\text{TSS}} = 1 - \frac{\text{RSS}}{\text{TSS}} \\
+R^2_{\text{adjusted}} & =  1 - \frac{(n-1)(1-R^2)}{n-p-1}
+\end{aligned}
+$$
+
+
+**Inputs**:
+
+| Argument | Description                                                   | 
+|----------|---------------------------------------------------------------|
+|  `y`     | a vector giving the values of the response variable           |
+| `yhat`   | a vector giving the predicted values of the response variable |
+|  `p`     | a vector indicating the number of predictors used             |
+
+
+
+```{r}
+calculateR2adj <- function(y, yhat, p) {
+  # Your code here
+  n <- length(y)
+  tss <- mean((y-mean(y))^2)
+  rss <- mean((y-yhat)^2)  #recycling code from above to help calculate r^2 
+  r2 <- 1 - rss/tss
+  r2adj <- 1 - ((n-1)*(1-r2))/(n-p-1)   #use r^2 that was calculated 
+  return(r2adj)
+}
+```
+
+After you complete the function, run the following code. You should expect a return value of 0.7337897.
+
+```{r, collapse=T}
+# p <- dim(Boston)[2] -1 
+p <- length(coef(lm.full)) - 1
+calculateR2adj(Boston$medv, lm.full.pred, p)
+```
+
+***
+
+
+
+```{r, collapse=T}
+dim(Boston)
+
+# split the data 50/50 into training set and test set
+set.seed(167) # set the seed so the analysis is reproducible
+train.idx <- sample(506, 253) # random sample the training data index
+train <- Boston[train.idx, ] # training set
+test <- Boston[-train.idx, ] # validation/test set
+
+# Your code here
+# You are expected to call your own functions calculateMSE() and calculateR2adj() to complete the calculation
+lm.full.train <- lm(medv ~ . , data = train)   ##lm.full train and test
+lm.full.test <- lm(medv ~. , data = test)
+
+lm.full.pred.train <- predict(lm.full.train)
+lm.full.pred.test <- predict(lm.full.test)
+
+calculateMSE(train$medv, lm.full.pred.train)  ##lm.full MSE and AdjR^2
+calculateR2adj(train$medv, lm.full.pred.train, p) 
+
+calculateMSE(test$medv, lm.full.pred.test)
+calculateR2adj(test$medv, lm.full.pred.test, p)
+
+
+lm.fwd3.train <- lm(medv ~ rm + lstat + ptratio, data = train)   ##lm.fwd3 train and test
+lm.fwd3.test <- lm(medv ~ rm + lstat + ptratio, data = test) 
+
+lm.fwd3.pred.train <- predict(lm.fwd3.train) 
+lm.fwd3.pred.test <- predict(lm.fwd3.test) 
+
+calculateMSE(train$medv, lm.fwd3.pred.train)  ##lm.fwd3 MSE and AdjR^2
+calculateR2adj(train$medv, lm.fwd3.pred.train, p)
+
+calculateMSE(test$medv, lm.fwd3.pred.test)
+calculateR2adj(test$medv, lm.fwd3.pred.test, p)
+
+
+# lm.fwd3.train <- lm(medv ~., data = train)
+# lm.fwd3.pred.train <- predict(lm.fwd3.train)
+# calculateMSE(train$medv, lm.fwd3.pred.train)
+# calculateR2adj(train$medv, lm.fwd3.pred.train, p)
+
+
+```
+
+
+**The lm.fwd3 model is better based on the higher MSE and adjR^2 values.**
+
+***
+
+
+$$\text{MSE}_\text{CV} = \frac{1}{K}\sum_{k = 1}^K \text{MSE}_k$$
+
+
+```{r, collapse=T}
+set.seed(167)
+n <- dim(Boston)[1]
+n.folds <- 10
+folds.idx <- sample(rep(1:n.folds), n, replace = T)
+mse.cv <- rep(0, n.folds) # where you store the test mse for each fold
+for (k in 1:n.folds){
+  test.idx <- which(folds.idx == k)
+  train <- Boston[-test.idx, ] # your training data in fold k
+  test <- Boston[test.idx, ] # your test data in fold k
+  # your code here
+  # You are expected to call your own function calculateMSE() to calculate the test mse and save it to mse.cv[k]
+  glm.fit <- glm(medv ~ ., data = test)
+  glm.fit.pred <- predict(glm.fit)
+  mse.cv[k] <- (1/n.folds)*calculateMSE(test$medv, glm.fit.pred)
+}
+# your code here
+# compute and output the average test.mse across all CV folds
+mse.cv
+
+```
+
+***
+
+
+$$ \text{MSE}_\text{CV.weighted} = \sum_{k = 1}^K \frac{n_k}{n} \text{MSE}_k $$
+
+
+
+```{r}
+## weighted CV
+set.seed(167)
+n <- dim(Boston)[1]
+n.folds <- 10
+folds.idx <- sample(rep(1:n.folds), n, replace = T)
+mse.cv.weighted <- rep(0, n.folds) # where you store the weighted test mse for each fold
+for (k in 1:n.folds){
+  test.idx <- which(folds.idx == k)
+  train <- Boston[-test.idx, ] # your training data in fold k
+  test <- Boston[test.idx, ] # your test data in fold k
+  # your code here
+  # You are expected to call your function calculateMSE() to calculate the test mse and save it to mse.cv[k]
+  # using if loop to determine whether n is evenly distributed, if so then calculate mse_weighted as expressed in previous exercise, if not calculate mse_weighted based of the precise equation 
+  if((n/n.folds) %% 2 == 0){
+    glm.fit <- glm(medv ~ ., data = train)
+    glm.fit.pred <- predict(glm.fit)
+    mse.cv.weighted[k] <- (1/n.folds)*calculateMSE(train$medv, glm.fit.pred)
+  }else{
+    glm.fit <- glm(medv ~ ., data = train)
+    glm.fit.pred <- predict(glm.fit)
+    mse.cv.weighted[k] <- (k/n)*calculateMSE(train$medv, glm.fit.pred)
+  }
+
+}
+# your code here
+# compute and output the sum of test.mse.weighted across all CV folds
+mse.cv.weighted
+
+```
+
+***
+
+
+```{r, collapse = T}
+## cv.glm() function comparison
+set.seed(167)
+n <- dim(Boston)[1]
+n.folds <- 10
+folds.idx <- sample(rep(1:n.folds), n, replace = T)
+mse.cv.weighted2 <- rep(0, n.folds) # where you store the weighted test mse for each fold
+for (k in 1:n.folds){
+  test.idx <- which(folds.idx == k)
+  train <- Boston[-test.idx, ] # your training data in fold k
+  test <- Boston[test.idx, ] # your test data in fold k
+  glm.fit2 <- glm(medv ~ . , data = train)
+  mse.cv.weighted2[k] <- cv.glm(data = train, glmfit = glm.fit2)$delta[1]
+
+}
+mse.cv.weighted2
+
+```
+
+
+***
+
+```{r, collapse= T}
+set.seed(167) # set the seed 
+n <- dim(Boston)[1]
+n.folds <- 10
+folds.idx <- sample(rep(1:n.folds), n, replace = T)
+mse.cv.d1 <- rep(0, n.folds) # where you store the weighted test mse for each fold
+for (k in 1:n.folds){
+  test.idx <- which(folds.idx == k)
+  train <- Boston[-test.idx, ] # your training data in fold k
+  test <- Boston[test.idx, ] # your test data in fold k
+  glm.fitd1 <- glm(medv ~ poly(lstat, k) , data = train)
+  mse.cv.d1[k] <- cv.glm(data = train, glmfit = glm.fitd1)$delta[1]
+
+}
+mse.cv.d1
+
+
+```
+
+***
+
+```{r, collapse = T}
+set.seed(167) # set the seed 
+n <- dim(Boston)[1]
+n.folds <- 10
+folds.idx <- sample(rep(1:n.folds), n, replace = T)
+mse.cv.d2 <- rep(0, n.folds) # where you store the weighted test mse for each fold
+for (k in 1:n.folds){
+  test.idx <- which(folds.idx == k)
+  train <- Boston[-test.idx, ] # your training data in fold k
+  test <- Boston[test.idx, ] # your test data in fold k
+  glm.fitd2 <- glm(medv ~ poly(rm, k) , data = train)
+  mse.cv.d2[k] <- cv.glm(data = train, glmfit = glm.fitd2)$delta[1]
+
+}
+mse.cv.d2
+
+```
+
+***
+
+
+
+```{r, collapse = T}
+set.seed(167) # set the seed 
+n <- dim(Boston)[1]
+n.folds <- 10
+folds.idx <- sample(rep(1:n.folds), n, replace = T)
+mse.cv.d3 <- rep(0, n.folds) # where you store the weighted test mse for each fold
+for (k in 1:n.folds){
+  test.idx <- which(folds.idx == k)
+  train <- Boston[-test.idx, ] # your training data in fold k
+  test <- Boston[test.idx, ] # your test data in fold k
+  glm.fitd3 <- glm(medv ~ poly(ptratio, k) , data = train)
+  mse.cv.d3[k] <- cv.glm(data = train, glmfit = glm.fitd3)$delta[1]
+
+}
+mse.cv.d3
+
+```
+
+***
+
+
+```{r, collapse = T}
+set.seed(167) # set the seed 
+n <- dim(Boston)[1]
+n.folds <- 10
+folds.idx <- sample(rep(1:n.folds), n, replace = T)
+mse.cv.best <- rep(0, n.folds) # where you store the weighted test mse for each fold
+for (k in 1:n.folds){
+  test.idx <- which(folds.idx == k)
+  train <- Boston[-test.idx, ] # your training data in fold k
+  test <- Boston[test.idx, ] # your test data in fold k
+  glm.fitbest <- glm(medv ~ poly(lstat, 4) + poly(rm, 5) + poly(ptratio, 8) , data = train)
+  mse.cv.best[k] <- cv.glm(data = train, glmfit = glm.fitbest)$delta[1]
+
+}
+mse.cv.best
+
+```
+
+***
+
+```{r, collapse = T}
+set.seed(167) # set the seed 
+n <- dim(Boston)[1]
+n.folds <- 10
+folds.idx <- sample(rep(1:n.folds), n, replace = T)
+mse.cv.best <- rep(0, n.folds) # where you store the weighted test mse for each fold
+mse.cv.full <- rep(0, n.folds)
+mse.cv.fwd3 <- rep(0, n.folds)
+for (k in 1:n.folds){
+  test.idx <- which(folds.idx == k)
+  train <- Boston[-test.idx, ] # your training data in fold k
+  test <- Boston[test.idx, ] # your test data in fold k
+  
+  glm.fitbest <- glm(medv ~ poly(lstat, 4) + poly(rm, 5) + poly(ptratio, 8) , data = train)
+  mse.cv.best[k] <- cv.glm(data = train, glmfit = glm.fitbest)$delta[1]
+  
+  glm.full <- glm(medv ~ ., data = train)
+  mse.cv.full[k] <- cv.glm(data = train, glmfit = glm.full)$delta[1]
+  
+  glm.fwd3 <- glm(medv ~ rm + lstat + ptratio, data = train)
+  mse.cv.fwd3[k] <- cv.glm(data = train, glmfit = glm.fwd3)$delta[1]
+}
+mse.cv.best #10 fold cv test on new gam, from previous exercise
+mse.cv.full #lm.full 10 fold cv test 
+mse.cv.fwd3 #lm.fwd3 10 fold cv test
+```
+
+***
+
+
+
+```{r, collapse = T}
+mcrime_rate <- median(Boston[,'crim'])
+mcrime_rate= ifelse(Boston[,'crim']>mcrime_rate,1,0)  # create label, 1 is above the meadian and 0 otherwise.
+table(mcrime_rate)
+#spits out the number of suburbs in each category
+mydf <- data.frame(Boston, mcrime_rate)
+set.seed(167)
+train.id <- sample(1:nrow(mydf), nrow(mydf)*0.7, replace = F)
+train <- mydf[train.id,]
+test <- mydf[-train.id,]
+```
+
+***
+
+
+```{r, collapse = T}
+logit.fit.all <- glm(mcrime_rate ~ zn+indus+chas+nox+rm+age+dis+rad+tax+ptratio+black+lstat+medv, family = binomial, data = train)
+summary(logit.fit.all)
+```
+
+***
+
+**The logistic regression model gave us coefficient estimates. Assuming all other predictors in the model held fixed, for every unit increase in X_j (crime rate) the log odds of all the other predictors will go up by the B_j (coefficients).**
+
+***
+
+
+```{r, collapse = T}
+logit.fit.prob <- predict(logit.fit.all, test, type = "response")
+logit.fit.class <- ifelse(logit.fit.prob > 0.5, 1, 0) %>%
+  as.factor()
+mean(logit.fit.class != test$mcrime_rate)
+
+```
+
+***

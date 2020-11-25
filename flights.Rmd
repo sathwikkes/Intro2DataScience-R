@@ -1,0 +1,287 @@
+---
+title: 'Flights - Spring 2020'
+author: 
+- name: Sathwik Kesappragada
+  email: 
+output:
+  html_document:
+    toc: yes
+    toc_depth: 4
+---
+
+
+***
+
+**Load necessary packages**
+
+\footnotesize
+```{r, collapse=T}
+# install.packages("tidyverse")
+library(tidyverse) # for `ggplot2` and `dplyr`
+
+# You need to install the nycflights13 package first, then you can comment out the following line.
+# install.packages("nycflights13")
+library(nycflights13)
+```
+
+***
+
+we will take a close look at the `nycflights13::flights` data set which contains all 336,776 flights that departed from New York City in 2013. The data comes from the [US Bureau of Transportation Statistics](http://www.transtats.bts.gov/DatabaseInfo.asp?DB_ID=120&Link=0).
+
+```{r, collapse=T}
+?flights # full documentation
+# View(flights) # see the data in RStudio Viewer
+flights
+```
+
+
+```{r, collapse=T}
+not_canceled <- filter(flights, !is.na(dep_delay), !is.na(arr_delay))
+not_canceled
+```  
+
+```{r, collapse = T}
+filter(not_canceled,arr_delay >= 120)
+```
+
+
+```{r, collapse = T}
+filter(not_canceled, carrier %in% c("UA","AA","DL"))
+```
+
+```{r, collapse = T}
+filter(not_canceled, arr_delay >= 120, dep_delay <= 0)
+```
+
+
+```{r, collapse = T}
+filter(not_canceled, dep_time <= 600 | dep_time == 2400)
+```
+
+
+```{r, collapse = T}
+most_delayed <- arrange(not_canceled, min_rank(desc(arr_delay)) <= 5)
+most_delayed <- select(most_delayed, year, month, day, origin, dest, carrier, flight, arr_delay)
+most_delayed %>% top_n(n = 5, wt = arr_delay)
+```
+
+```{r, collapse = T}
+longest_flights_bydist <- arrange(not_canceled, desc(distance))
+longest_flights_bydist <- select(longest_flights_bydist, carrier, origin, dest)
+longest_flights_bydist
+
+# longest_flights_byat <- arrange(not_canceled, desc(air_time))
+# longest_flights_byat <- select(longest_flights_byat, carrier, origin, dest)
+# longest_flights_byat
+```
+
+***
+
+
+```{r, collapse = T}
+select(not_canceled, dep_time, dep_delay, arr_time, arr_delay)
+select_(not_canceled, "dep_time", "dep_delay", "arr_time", "arr_delay")
+select(not_canceled, contains("dep"), contains("arr"), -contains("sched"), -carrier)
+select(not_canceled, matches("time$|delay$"), -contains("sched"), -contains("air"))
+```
+
+***
+
+
+```{r, collapse = T}
+flighttimes <- mutate(not_canceled, 
+                      dep_time = ((dep_time %/% 100) * 60 + (dep_time %% 100)), 
+                      arr_time = ((arr_time %/% 100) * 60 + (arr_time %% 100)), 
+                      flight_time = arr_time - dep_time
+)
+ggplot(flighttimes, aes(x = flight_time, y = air_time )) + 
+  geom_point()
+```
+
+**I expect air_time to be the difference between the arrival and departure times (air_time = arr_time - dep_time). I see negative points in the scatterplot and believe they exist possibly because of the different time zones and flights that are in air around midnight (the difference in air time should be by 24 hours). The time runs in millitary time and when a difference occurs between an AM and PM it would give us negative values. **   
+
+
+```{r, collapse = T}
+library(lubridate)
+
+flighttime_update <- mutate(not_canceled, flight_time = ifelse(dep_time >= 1200 & arr_time <= 1200, (2400 - dep_time) + arr_time, arr_time-dep_time))
+
+ggplot(flighttime_update, aes(x = flight_time, y = air_time)) + 
+  geom_point()
+```
+
+***
+
+
+```{r, collapse=T}
+#?airports
+airports %>% glimpse()
+
+left_join(flights, airports, by=c("dest"="faa")) %>% glimpse()
+```
+
+```{r, collapse= T}
+not_canceled %>% 
+  mutate(dep_time = (dep_time %/% 100) * 60 + (dep_time %% 100),
+         sched_dep_time = (sched_dep_time %/% 100) * 60 + (sched_dep_time %% 100),
+         arr_time = (arr_time %/% 100) * 60 + (arr_time %% 100),
+         sched_arr_time = (sched_arr_time %/% 100) * 60 + (sched_arr_time %% 100)) %>%
+  transmute((arr_time - dep_time) %% (60*24) - air_time)
+```
+
+***
+
+**There exists a strong increasing relationship between both average deparature delay and arrival delay and the proportion of cancelled flights.**  
+```{r, collapse = T}
+cancelled_per_day <- 
+  flights %>%
+  mutate(cancelled = (is.na(arr_delay) | is.na(dep_delay))) %>%
+  group_by(month, day) %>%
+  summarise(
+    cancelled_num = sum(cancelled),
+    flights_num = n(),
+  )
+# scheduled_per_day <- 
+#   flights %>%
+#   mutate(scheduled = sched_dep_time | sched_arr_time ) %>%
+#   group_by(month, day) %>%
+#   summarise(
+#     scheduled_num = sum(scheduled),
+#     flights_num = n()
+#   )
+
+cancelled_and_delays <-
+  flights %>%
+  mutate(cancelled = (is.na(arr_delay) | is.na(dep_delay))) %>%
+  group_by(month, day) %>%
+  summarise(
+    cancelled_prop = mean(cancelled),
+    avg_dep_delay = mean(dep_delay, na.rm = TRUE),
+    avg_arr_delay = mean(arr_delay, na.rm = TRUE)
+  ) %>%
+  ungroup()
+ggplot(cancelled_and_delays) +
+  geom_point(aes(x = cancelled_prop, y = avg_arr_delay, size = cancelled_per_day$flights_num)) +
+  geom_smooth(aes(x = cancelled_prop, y = avg_arr_delay)) # plotted against the arr_delay (assumption) 
+
+```
+
+
+```{r, collapse = T}
+
+group <- group_by(flights, month, day)
+overview <- summarise(group, count = n(), all_canceled = sum (is.na(dep_delay) | is.na(arr_delay)))
+highestcancellation <- mutate(overview, canceled_per_day = all_canceled/count)
+highestcancellation <- arrange(highestcancellation, desc(canceled_per_day))
+head(highestcancellation, 2, canceled_per_day)
+
+# cancelled_per_dayt <- 
+#   flights %>%
+#   mutate(cancelled = (is.na(arr_delay) | is.na(dep_delay))) %>%
+#   #group_by(year, month, day) %>%
+#   summarise(
+#     cancelled_num = sum(cancelled),
+#     cancelled_prop = mean(cancelled),
+#     flights_num = n(),
+#   )
+# 
+#    
+# cancellation_rates <- arrange(cancelled_per_dayt, min_rank(desc(cancelled_prop)) <= 2 )
+# cancellation_rates %>%  top_n(n = 2, wt = cancelled_prop)
+
+# total_cancel <- 
+#   flights %>%
+#   mutate(cancelled = (is.na(arr_delay) | is.na(dep_delay))) %>%
+#   group_by(month, day, year) %>%
+#   summarise(
+#     cancelled_num = sum(cancelled),
+#     flights_num = n(),
+#   )
+# total_schedule <- 
+#   flights %>%
+#   mutate(scheduled = sched_dep_time | sched_arr_time ) %>%
+#   group_by(month, day, year()) %>%
+#   summarise(
+#     scheduled_num = sum(scheduled),
+#     flights_num = n()
+#   )
+# totalnum_canceled <- total_cancel$cancelled_num
+# totalnum_scheduled <- total_schedule$scheduled_num
+# cancellation_rate <-
+#   flights %>%
+#   mutate(cancel_rate = (totalnum_canceled)/(totalnum_scheduled)
+# )
+# cancellation_rate <- filter(cancellation_rate )
+
+
+```
+
+
+```{r, collapse = T}
+group <- group_by(flights, month, day)
+summary <- summarise(group, count = n(), all_canceled = sum (is.na(dep_delay) | is.na(arr_delay)))
+highestcancellation <- mutate(summary, canceled_per_day = all_canceled/count)
+flight_cleaned <-
+  flights %>%
+  filter(month == 2, day == 9 & month == 2, day == 8)
+ggplot(flight_cleaned) +
+  geom_point(aes(x = mean(highestcancellation$canceled_per_day), y = cancelled_and_delays$avg_arr_delay, size = cancelled_per_day$flights_num)) +
+  geom_smooth(aes(x = mean(highestcancellation$canceled_per_day), y = cancelled_and_delays$avg_arr_delay)) # plotted against the arr_delay (assumption) 
+
+
+
+```
+
+
+```{r, collapse=T}
+#?weather
+weather %>% glimpse()
+```
+
+****
+**After taking a look at the glimpse of weather you can tell that the wind speed and visibility were not acceptable conditions.**
+***
+
+```{r, collapse = T}
+not_canceled %>%
+  group_by(carrier, dest) %>%
+  summarise(arr_delay = mean (arr_delay, na.arm = TRUE))
+ggplot(not_canceled) +
+  geom_boxplot(mapping = aes(x = reorder(carrier, arr_delay, FUN = median), y = arr_delay)) + 
+  xlab("carrier") +
+  coord_flip()
+```
+
+
+```{r, collapse = T}
+not_canceled %>%  
+  group_by(carrier) %>%
+  summarise(arr_delay = mean(arr_delay, na.rm = TRUE)) %>%
+  arrange(desc(arr_delay)) # the worst delays
+ 
+not_canceled %>%
+  group_by(carrier) %>%
+  summarise(arr_delay = mean(arr_delay, na.rm = TRUE)) %>%
+  arrange(arr_delay)   #the least delays; opposite 
+   
+```
+
+
+```{r, collapse = T}
+flights %>% group_by(carrier) %>% count(dest)
+```
+
+```{r, collapse - T}
+not_canceled %>%
+  group_by(carrier) %>%
+  summarize(n_dest = n_distinct(dest))
+not_canceled_clean <- 
+  not_canceled %>%
+  filter(carrier != "AS" & carrier != "F9" & carrier != "HA")
+ggplot(not_canceled_clean) +
+  geom_boxplot(mapping = aes(x = reorder(carrier, arr_delay, FUN = median), y = arr_delay)) + 
+  xlab("carrier") +
+  coord_flip()
+  
+```
+***

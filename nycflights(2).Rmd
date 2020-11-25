@@ -1,0 +1,330 @@
+---
+title: 'Flights Visualization with Maps - Spring 2020'
+author: 
+- name: 'Sathwik Kesappragda'
+  email: 
+output:
+  html_document:
+    toc: yes
+    toc_depth: 4
+---
+
+
+***
+
+**Install necessary packages**
+
+Note that you only need to install each package once. Then you can comment out the following installation lines.
+
+``````{r}
+#install.packages("maps")
+#install.packages("mapproj")
+```
+
+***
+
+**Load necessary packages**
+
+```{r, collapse=T}
+library(tidyverse) # for `ggplot2`, `dplyr`, and more
+
+library(maps) # for map visualization
+#library(mapdata)
+library(mapproj) 
+
+library(datasets) # for `state` data set
+library(nycflights13) # for the 2013 NYC flights data set
+```
+
+***
+
+```{r, collapse=T}
+usa_map <- map_data("usa")
+dim(usa_map)
+glimpse(usa_map)
+```
+
+```{r}
+ggplot(data = usa_map) + 
+  geom_polygon(aes(x = long, y = lat, group = group)) + 
+  coord_quickmap()
+```
+
+
+```{r, collapse = T}
+#UCR plotted
+ggplot(data = usa_map) + 
+  geom_polygon(aes(x = long, y = lat, group = group), color = "blue", size = 1, fill = "red") + 
+  geom_point(mapping = aes(x = -117.37 , y = 33.98 )) +
+  coord_quickmap()
+
+```
+
+***
+
+```{r, collapse=T}
+states_map <- map_data("state")
+dim(states_map)
+glimpse(states_map)
+```
+
+```{r, collapse=T}
+ggplot() + 
+  geom_map(data = states_map, map = states_map,
+           aes(map_id = region, fill = region), color="white") + 
+  # geom_map() doesn't work in such a way that ggplot2 knows the extend of the map values, so you always have to expand the limits by hand yourself.
+  expand_limits(x = states_map$long, y = states_map$lat) +
+  coord_quickmap() +
+  guides(fill = FALSE) # do this to leave off the color legend
+```
+
+
+
+```{r, collapse=T}
+?state.x77
+head(state.x77)
+
+state_data <- as.data.frame(state.x77)
+state_data$State <- tolower(rownames(state_data))
+state_data %>% glimpse()
+```
+
+```{r, collapse=T}
+ggplot(data = state_data, aes(map_id = State))+ 
+  geom_map(map = states_map,
+           aes(fill = Population)) + 
+  expand_limits(x = states_map$long, y = states_map$lat) +
+  coord_quickmap() 
+```
+
+
+```{r, collapse = T}
+ggplot(data = state_data, aes(map_id = State))+ 
+  geom_map(map = states_map,
+           aes(fill = Income)) + 
+  expand_limits(x = states_map$long, y = states_map$lat) +
+  coord_quickmap() 
+```
+
+***
+
+
+```{r, collapse=T}
+head(state.center)
+head(state.region)
+```
+
+```{r, collapse = T}
+
+ggplot(data = state_data, aes(map_id = State))+ 
+  geom_map(map = states_map, aes(fill = Population)) + #fill population was used to get a better outline of every state
+  expand_limits(x = states_map$long, y = states_map$lat) +
+  coord_quickmap() +
+geom_point(mapping = aes(x=state.center$x, y=state.center$y,
+                                      color = state.region,
+                                      size = Population))  #just reproduced using the code from the previous exercise
+``` 
+
+***
+
+```{r, collapse=T}
+?flights # full documentation
+glimpse(flights)
+```
+
+
+```{r, collapse = T}
+not_canceled <- filter(flights, !is.na(dep_delay), !is.na(arr_delay))
+dest_uniq <- 
+  flights %>%
+  select(dest) %>%
+  distinct()
+
+dest_uniq
+
+num_flights <- 
+  not_canceled %>%
+  count(dest) 
+
+num_flights
+
+most_arrived <- not_canceled %>% 
+  group_by(dest) %>%
+  summarise(n = n()) %>%
+  mutate(rank = rank(desc(n))) %>%
+  filter(rank == 1)
+most_arrived
+
+least_arrived <- not_canceled %>% 
+  group_by(dest) %>%
+  summarise(n = n()) %>%
+  mutate(rank = rank(n)) %>%
+  filter(rank == 1)
+
+least_arrived
+```
+
+*** 
+
+```{r, eval=F}
+#?airports
+airports %>% glimpse()
+per_dest<- 
+  flights %>%
+  select(dest) %>%
+  distinct() 
+  not_canceled %>%
+  count(dest) 
+left_join(per_dest, airports, by=c("dest"="faa"))
+```
+
+
+```{r, collapse = T}
+per_dest<- 
+  flights %>%
+  select(dest) %>%
+  distinct() 
+  not_canceled %>%
+  count(dest) 
+
+
+flights_latlon<- not_canceled %>%
+   inner_join(select(airports, origin = faa, origin_lat = lat, origin_lon = lon),
+      by = "origin"
+    ) %>%
+   inner_join(select(airports, dest = faa, dest_lat = lat, dest_lon = lon),
+     by = "dest"
+   )
+  left_join(per_dest, airports, by=c("dest"="faa"))
+
+
+flights_latlon %>%
+  ggplot(aes(
+    x = origin_lon, xend = dest_lon,
+    y = origin_lat, yend = dest_lat
+  )) +
+  borders("state") +
+  geom_segment(arrow = arrow(length = unit(0.1, "cm"))) +
+  coord_quickmap() +
+  labs(y = "Latitude", x = "Longitude")
+
+
+```
+
+
+
+$$Y=2+3X+\epsilon$$
+$$X \sim Uniform(A=-2, B=2)$$
+$$\epsilon \sim N(\mu=0, \sigma=2)$$
+
+
+```{r, collapse=T}
+# Always remember to set the random seed for simulation studies
+set.seed(167) # feel free to change 167 to your lucky number
+X <- runif(100, -2, 2) ##simulating the data points
+e <- rnorm(100, 0 , 2) ##simulate the error term N ~(0,2)
+Y <- 2 + 3*X + e
+#summary (y)
+ggplot(mapping = aes(x = X, y = Y)) +
+  geom_point() +
+  geom_smooth(method = 'lm', se = F, col = "blue") 
+```
+
+***
+
+
+the analytical solution of the least squares regression $Y = \beta_0 + \beta_1 X + \epsilon$ is
+
+$$ 
+\begin{aligned}
+ \hat{\beta_1} & = 
+ \frac{\sum_{i=1}^{n} (x_i - \bar{x})(y_i - \bar{y})}
+ {\sum_{i=1}^{n} (x_i - \bar{x})^2} \\
+ \hat{\beta_0} & = \bar{y} - \hat{\beta_1} \bar{x}
+\end{aligned} 
+$$
+
+**After calculating the coefficients manually using the equations above, we see that the values match when compared to the values we get from the lm function.**  
+```{r, collapse =T}
+n <- length(X)
+sxx <- sum(X^2) - sum(X)^2 / n
+syy <- sum(Y^2) - sum(Y)^2 / n
+sxy <- sum(X * Y) - (sum(X) * sum(Y)) / n
+
+beta1 <- sxy / sxx
+beta0 <- mean(Y) - beta1*mean(X)
+beta1
+beta0
+# b1 <- cor(Y,X) * sd(Y)/sd(X)
+# b0 <- mean(Y) - beta1*mean(X)
+# b1
+# b0
+
+lin_reg <- lm(Y ~ X)
+summary(lin_reg)
+```
+
+***
+
+
+
+$$
+\begin{aligned}
+\text{RSE} = \hat{\sigma} &= \sqrt{\frac{1}{n-2}\text{RSS}} \\
+&= \sqrt{\frac{1}{n-2} \sum_{i=1}^{n} ( y_i - \hat{y_i} )^2} 
+\end{aligned}
+$$ 
+
+**The manually calculated residual standard error is not the same as the value we obtain from the lm function. The residual standard error shows the variability and how well the model fits the data.**  
+```{r, collapse =T}
+sse <- syy - sxy^2 / sxx
+mse <- sse / (n - 2)
+ 
+beta1.err <- sqrt(mse) / sqrt(sxx)
+beta0.err <- sqrt(mse) / (sqrt(n) * sqrt(1 + (mean(X)^2 / (sum((X - mean(X))^2) / n))))
+fitted <- X * beta1 + beta0
+rse <- sqrt(sum((Y - fitted)^2) / (n - 2)) #rss in numerator, obtained from fitted 
+rse 
+
+lin_reg <- lm(Y ~ X)
+summary(lin_reg)
+
+```
+
+***
+
+$$
+\begin{aligned}
+\text{TSS} & = \sum_{i=1}^{n} (y_i - \bar{y})^2 \\
+\text{RSS} & = \sum_{i=1}^{n} \left(y_i - \hat{f}(x_i) \right)^2 \\
+R^2 & = \frac{\text{TSS}-\text{RSS}}{\text{TSS}} = 1 - \frac{\text{RSS}}{\text{TSS}} \\
+\end{aligned}
+$$
+**The R-squared value is the same.**  
+```{r, collapse = T}
+r2 <- (syy - sse) /syy
+r2
+```
+
+***
+
+
+```{r, eval=F}
+gg <- ggplot() +
+  geom_abline(intercept = 2, slope = 3, col = "red", size = 1)
+for ( i in 1:10) {
+  ## add your simulation code here
+  set.seed(i)
+  X[[i]] <- runif(100,-2,2)
+  e[[i]] <- rnorm(100,0,2)
+  Y[[i]] <- 2 + 3*x[[i]] + e[[i]]
+  local_data <- tibble(X = X[[i]], Y = Y[[i]])
+  gg <- gg + 
+    geom_smooth(data = local_data, mapping = aes(x=X, y= Y), col ="blue", size = 1) ## alternatively you can use geom_abline()
+}
+
+gg ## call gg at the end to plot it.
+```
+
+
+***
